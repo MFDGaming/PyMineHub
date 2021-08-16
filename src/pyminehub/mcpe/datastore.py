@@ -1,5 +1,6 @@
+import json
+import os
 import pickle
-import sqlite3
 from typing import Optional
 
 from pyminehub.config import ConfigKey, get_value
@@ -40,54 +41,48 @@ class DataStore:
 class _DataBase(DataStore):
 
     def __init__(self, name: str) -> None:
-        self._connection = sqlite3.connect(name + '.db')
+        exists = os.path.isfile(name + '.json')
+        self._file = open(name + '.json', '+wb')
+        if exists:
+            try:
+                self._data = json.load(self._file)
+            except Exception:
+                self._data = {}
+        else:
+            self._data = {}
         self._create_table()
 
     def _create_table(self) -> None:
-        with self._connection:
-            self._connection.execute(
-                'CREATE TABLE IF NOT EXISTS chunk(x INTEGER, z INTEGER, data BLOB, PRIMARY KEY(x, z))')
-            self._connection.execute(
-                'CREATE TABLE IF NOT EXISTS player(player_id TEXT, data BLOB, PRIMARY KEY(player_id))')
+        if "chunk" not in self._data:
+            self._data["chunk"] = {}
+        if "player" not in self._data:
+            self._data["player"] = {}
 
     def delete_all(self) -> None:
-        with self._connection:
-            self._connection.execute('DELETE FROM chunk')
-            self._connection.execute('DELETE FROM player')
+        del self._data["chunk"]
+        del self._data["player"]
+        json.dump(self._data, self._file)
 
     def save_chunk(self, position: ChunkPosition, chunk: Chunk, insert_only=False) -> None:
         encoded_chunk = encode_chunk(chunk)
-        param = (encoded_chunk, position.x, position.z)
-        with self._connection:
-            if not insert_only:
-                self._connection.execute(
-                    'UPDATE chunk SET data=? WHERE x=? AND z=?', param)
-            self._connection.execute(
-                'INSERT OR IGNORE INTO chunk(data,x,z) VALUES(?,?,?)', param)
+        self._data["chunk"][":".join([str(position.x), str(position.z)])] = encoded_chunk
+        json.dump(self._data, self._file)
 
     def load_chunk(self, position: ChunkPosition) -> Optional[Chunk]:
-        param = (position.x, position.z)
-        row = self._connection.execute('SELECT data FROM chunk WHERE x=? AND z=?', param).fetchone()
-        return decode_chunk(row[0]) if row else None
+        param = ":".join([str(position.x), str(position.z)])
+        if param in self._data["chunk"]:
+            return decode_chunk(self._data["chunk"][param])
 
     def count_chunk(self) -> int:
-        row = self._connection.execute('SELECT count(*) FROM chunk').fetchone()
-        return row[0] if row else 0
+        return len(self._data["chunk"])
 
     def save_player(self, player_id: str, player: PlayerState, insert_only=False) -> None:
-        param = (pickle.dumps(player, protocol=_PICKLE_PROTOCOL), player_id)
-        with self._connection:
-            if not insert_only:
-                self._connection.execute(
-                    'UPDATE player SET data=? WHERE player_id=?', param)
-            self._connection.execute(
-                'INSERT OR IGNORE INTO player(data,player_id) VALUES(?,?)', param)
+        self._data["player"][player_id] = pickle.dumps(player, protocol=_PICKLE_PROTOCOL)
+        json.dump(self._data, self._file)
 
     def load_player(self, player_id: str) -> Optional[PlayerState]:
-        param = (player_id, )
-        row = self._connection.execute('SELECT data FROM player WHERE player_id=?', param).fetchone()
-        return pickle.loads(row[0]) if row else None
-
+        if player_id in self._data["player"]:
+            return pickle.loads(self._data["player"][player_id])
 
 def create_data_store() -> DataStore:
     world_name = get_value(ConfigKey.WORLD_NAME)
