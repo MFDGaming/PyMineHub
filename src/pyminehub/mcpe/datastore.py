@@ -1,3 +1,4 @@
+import binascii
 import json
 import os
 import pickle
@@ -66,24 +67,24 @@ class _DataBase(DataStore):
 
     def save_chunk(self, position: ChunkPosition, chunk: Chunk, insert_only=False) -> None:
         encoded_chunk = encode_chunk(chunk)
-        self._data["chunk"][":".join([str(position.x), str(position.z)])] = encoded_chunk
+        self._data["chunk"][":".join([str(position.x), str(position.z)])] = binascii.hexlify(encoded_chunk)
         json.dump(self._data, self._file)
 
     def load_chunk(self, position: ChunkPosition) -> Optional[Chunk]:
         param = ":".join([str(position.x), str(position.z)])
         if param in self._data["chunk"]:
-            return decode_chunk(self._data["chunk"][param])
+            return decode_chunk(binascii.unhexlify(self._data["chunk"][param]))
 
     def count_chunk(self) -> int:
         return len(self._data["chunk"])
 
     def save_player(self, player_id: str, player: PlayerState, insert_only=False) -> None:
-        self._data["player"][player_id] = pickle.dumps(player, protocol=_PICKLE_PROTOCOL)
+        self._data["player"][player_id] = binascii.hexlify(pickle.dumps(player, protocol=_PICKLE_PROTOCOL))
         json.dump(self._data, self._file)
 
     def load_player(self, player_id: str) -> Optional[PlayerState]:
         if player_id in self._data["player"]:
-            return pickle.loads(self._data["player"][player_id])
+            return pickle.loads(binascii.unhexlify(self._data["player"][player_id]))
 
 def create_data_store() -> DataStore:
     world_name = get_value(ConfigKey.WORLD_NAME)
