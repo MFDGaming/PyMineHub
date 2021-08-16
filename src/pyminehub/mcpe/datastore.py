@@ -67,7 +67,7 @@ class _DataBase(DataStore):
 
     def save_chunk(self, position: ChunkPosition, chunk: Chunk, insert_only=False) -> None:
         encoded_chunk = encode_chunk(chunk)
-        self._data["chunk"][":".join([str(position.x), str(position.z)])] = binascii.hexlify(encoded_chunk)
+        self._data["chunk"][":".join([str(position.x), str(position.z)])] = binascii.hexlify(encoded_chunk).decode()
         json.dump(self._data, self._file)
 
     def load_chunk(self, position: ChunkPosition) -> Optional[Chunk]:
@@ -79,7 +79,7 @@ class _DataBase(DataStore):
         return len(self._data["chunk"])
 
     def save_player(self, player_id: str, player: PlayerState, insert_only=False) -> None:
-        self._data["player"][player_id] = binascii.hexlify(pickle.dumps(player, protocol=_PICKLE_PROTOCOL))
+        self._data["player"][player_id] = binascii.hexlify(pickle.dumps(player, protocol=_PICKLE_PROTOCOL)).decode()
         json.dump(self._data, self._file)
 
     def load_player(self, player_id: str) -> Optional[PlayerState]:
