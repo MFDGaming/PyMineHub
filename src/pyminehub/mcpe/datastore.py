@@ -42,7 +42,7 @@ class _DataBase(DataStore):
 
     def __init__(self, name: str) -> None:
         exists = os.path.isfile(name + '.json')
-        self._file = open(name + '.json', '+wb')
+        self._file = open(name + '.json', '+w')
         if exists:
             try:
                 self._data = json.load(self._file)
@@ -57,6 +57,7 @@ class _DataBase(DataStore):
             self._data["chunk"] = {}
         if "player" not in self._data:
             self._data["player"] = {}
+        json.dump(self._data, self._file)
 
     def delete_all(self) -> None:
         del self._data["chunk"]
